@@ -1,8 +1,52 @@
 Write your reflection here.
 
-See reflection.md for what makes a good reflection — be specific, use the
-terminology from this assignment (HTML element, CSS selector, class and id
-selectors, sibling selector, inner_text, attribute, headless browser, waiting for
-JavaScript, crawling, pagination, read_html, melt, fuzzy matching, normalization,
-threshold, human in the loop, merge indicator, gap analysis), and make it
-actionable.
+The three scrapers taught me that "scraping" isn't one skill — it's a different 
+technique per site. Lakeshore was pure CSS selectors: a class selector for the 
+cards, an id-free h2.menu-section__title heading, and the ~ sibling selector to 
+reach the div.menu-grid that followed it without ever naming the grid directly. 
+That's the part that didn't click until I tried it by hand in the Console tab 
+first — document.querySelectorAll let me see immediately that ~ div.menu-grid 
+found the right element, and ~ * would have grabbed the description paragraph 
+above it instead. Hilltop was different again: pd.read_html handed me every
+already parsed, and the hard part was realizing the heading-to-table pairing has 
+to go through zip(), since neither element knows about the other — the page just 
+happens to put them in the same order. melt collapsing the S/M/L columns into rows 
+was the one piece of pandas I had to draw out on paper before it made sense.
+
+Canal Street is where I actually got bitten. My first version of scrape_canal 
+called query_selector_all("a.result-card") right after clicking "Show full menu" 
+and got an empty list back — no error, just nothing. That's the lesson about a 
+headless browser running JavaScript: the click returns before the fetch to 
+menu.json resolves and the cards get drawn, so query_selector_all runs before 
+the DOM exists. Adding wait_for_selector fixed the first load, but I still missed 
+that "Show more" needed its own wait — wait_for_function comparing the card count 
+before and after the click — because the same "page isn't done yet" problem happens 
+on every page of pagination, not just the first one.
+
+
+Part 2's fuzzy matching was conceptually the hardest. I expected a single score 
+threshold to "solve" matching, but normalize_name only gets you normalized-string 
+equality — it can't tell me that "Matcha Latte" (87 against "Mocha Latte") is a 
+different drink, or that "PSL" (18 against "Pumpkin Spice Latte") is the same one. 
+That's why the human-in-the-loop design exists: AUTO_MATCH and REVIEW aren't 
+correctness thresholds, they're confidence thresholds, and the owner's saved 
+decisions in item_matches.csv are what actually resolve the cases a score can't. 
+The part I underestimated was that the "pool" of known names grows as match_items 
+runs — Canal Street's "Matcha Latte" only auto-matches because Lakeshore's already 
+got added to the list by the time Canal's row is processed. I had to trace through 
+the loop by hand to see why order mattered.
+
+
+For Part 3, gap_analysis's outer merge with indicator=True was new to me — I'd only 
+ever used merge to combine columns, not to find out which rows came from which side. 
+Forgetting to .astype(str) the _merge column before sorting cost me twenty minutes of 
+a GitHub-issue-worthy debugging session, because its categorical dtype quietly sorts 
+by the category's original order, not the labels I'd just renamed it to.
+
+
+Where I need more practice: I can write a CSS selector when I can see the HTML, but 
+I'm still slow at guessing the right selector blind — I'd benefit from more reps 
+using just the Console's querySelectorAll before writing Python. I also want to get 
+more comfortable with groupby().agg() using named aggregations (rivals="nunique", 
+sold_by=lambda...) — I got it working by trial and error here, not from real 
+understanding of when pandas allows the keyword form versus requiring tuples.
